@@ -23,7 +23,7 @@ It adds:
 
   Selects GPU arch flags for nvcc based on ``target_CUDA_architectures``. Safe to call multiple times, will cache auto detection results::
 
-  cmake_cuda_arch_select([TARGET target] [FLAGS name] [READABLE name] [LISTING name] [ARCH arch1 ...])
+  cmake_cuda_arch_select([TARGETS target ...] [FLAGS name] [READABLE name] [ARCH arch1 ...])
 
   ``ARCH: Auto | Common | All | LIST(ARCH_AND_PTX ...)``
       - "Auto" detects local machine GPU compute arch at runtime (cached on first call)
@@ -45,9 +45,6 @@ It adds:
 
   ``READABLE <variable_name>``
     Output a human readable list for the selected archetecture(s).
-
-  ``LISTING <variable_name>``
-    Output a numeric list for the selected archetecture(s). One per card if auto detection is used, in order.
 
    More info on CUDA architectures: https://en.wikipedia.org/wiki/CUDA
 

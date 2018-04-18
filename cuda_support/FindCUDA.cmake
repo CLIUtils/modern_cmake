@@ -1056,7 +1056,7 @@ include("${CMAKE_CURRENT_LIST_DIR}/CUDA/select_compute_arch.cmake")
 # Usage:
 #   SELECT_NVCC_ARCH_FLAGS(out_variable [list of CUDA compute archs])
 function(CUDA_SELECT_NVCC_ARCH_FLAGS out_variable)
-  cmake_cuda_arch_select(FLAGS nvcc_flags READABLE nvcc_archs_readable ARCH ${ARGN})
+  cmake_cuda_arch_select(FLAGS nvcc_flags READABLE nvcc_archs_readable ARCHS ${ARGN})
   string(REPLACE ";" " " nvcc_archs_readable "${nvcc_archs_readable}")
 
   set(${out_variable}          ${nvcc_flags}          PARENT_SCOPE)

@@ -122,17 +122,20 @@ endfunction()
 # Usage:
 #   cmake_cuda_arch_select([TARGET name] [FLAGS name] [READABLE name] [LISTING name] [ARCH arch1 ...])
 #   FLAGS is a list of the flags
-#   TARGET will have the flags added (interface or regular targets supported)
+#   TARGETS will have the flags added (interface or regular targets supported)
 #   PUBLIC/INTERFACE/PRIVATE are optional, PUBLIC or INTERFACE is the default
 #   READABLE is a human readable version of the flags list
-#   LISTING is a list of the detected architectures (one per card, in order)
 #   QUIET will keep the function from printing messages
 function(CMAKE_CUDA_ARCH_SELECT)
   cmake_parse_arguments(CUDA_ARCH_SELECT
-      "QUIET;PRIVATE;PUBLIC;INTERFACE"
-    "READABLE;LISTING;FLAGS;TARGET"
-    "ARCHS"
+    "QUIET;PRIVATE;PUBLIC;INTERFACE"
+    "READABLE;FLAGS"
+    "ARCHS;TARGETS"
     ${ARGN})
+
+  if(CUDA_ARCH_SELECT_UNPARSED_ARGUMENTS)
+    message(SEND_ERROR "Unparsed argument(s) detected: ${CUDA_ARCH_SELECT_UNPARSED_ARGUMENTS}")
+  endif()
 
   if(CUDA_ARCH_SELECT_ARCHS)
     set(CUDA_ARCH_LIST "${CUDA_ARCH_SELECT_ARCHS}")
@@ -212,9 +215,6 @@ function(CMAKE_CUDA_ARCH_SELECT)
   string(REGEX MATCHALL "[0-9()]+" cuda_arch_bin "${cuda_arch_bin}")
   string(REGEX MATCHALL "[0-9]+"   cuda_arch_ptx "${cuda_arch_ptx}")
 
-  if(CUDA_ARCH_SELECT_LISTING)
-    set(${CUDA_ARCH_SELECT_LISTING} ${cuda_arch_ptx} PARENT_SCOPE)
-  endif()
 
   if(cuda_arch_bin)
     list(REMOVE_DUPLICATES cuda_arch_bin)
@@ -230,18 +230,18 @@ function(CMAKE_CUDA_ARCH_SELECT)
   foreach(arch ${cuda_arch_bin})
     if(arch MATCHES "([0-9]+)\\(([0-9]+)\\)")
       # User explicitly specified ARCH for the concrete CODE
-      list(APPEND nvcc_flags -gencode arch=compute_${CMAKE_MATCH_2},code=sm_${CMAKE_MATCH_1})
+      list(APPEND nvcc_flags --generate-code=arch=compute_${CMAKE_MATCH_2},code=sm_${CMAKE_MATCH_1})
       list(APPEND nvcc_archs_readable sm_${CMAKE_MATCH_1})
     else()
       # User didn't explicitly specify ARCH for the concrete CODE, we assume ARCH=CODE
-      list(APPEND nvcc_flags -gencode arch=compute_${arch},code=sm_${arch})
+      list(APPEND nvcc_flags --generate-code=arch=compute_${arch},code=sm_${arch})
       list(APPEND nvcc_archs_readable sm_${arch})
     endif()
   endforeach()
 
   # Tell NVCC to add PTX intermediate code for the specified architectures
   foreach(arch ${cuda_arch_ptx})
-    list(APPEND nvcc_flags -gencode arch=compute_${arch},code=compute_${arch})
+    list(APPEND nvcc_flags --generate-code=arch=compute_${arch},code=compute_${arch})
     list(APPEND nvcc_archs_readable compute_${arch})
   endforeach()
 
@@ -253,28 +253,30 @@ function(CMAKE_CUDA_ARCH_SELECT)
     set(${CUDA_ARCH_SELECT_READABLE} ${nvcc_archs_readable} PARENT_SCOPE)
   endif()
 
-  if(CUDA_ARCH_SELECT_TARGET)
-    foreach(flag IN LISTS nvcc_flags)
-      # If no keyword given, select PUBLIC/INTERFACE as needed
-      if(NOT CUDA_ARCH_SELECT_PUBLIC AND NOT CUDA_ARCH_SELECT_INTERFACE AND NOT CUDA_ARCH_SELECT_PRIVATE)
-        get_property(target_type TARGET ${CUDA_ARCH_SELECT_TARGET} PROPERTY TYPE)
-        if("${target_type}" STREQUAL "INTERFACE_LIBRARY")
-          set(CUDA_ARCH_SELECT_INTERFACE ON)
-        else()
-          set(CUDA_ARCH_SELECT_PUBLIC ON)
+  if(CUDA_ARCH_SELECT_TARGETS)
+    foreach(target IN LISTS CUDA_ARCH_SELECT_TARGETS)
+      foreach(flag IN LISTS nvcc_flags)
+        # If no keyword given, select PUBLIC/INTERFACE as needed
+        if(NOT CUDA_ARCH_SELECT_PUBLIC AND NOT CUDA_ARCH_SELECT_INTERFACE AND NOT CUDA_ARCH_SELECT_PRIVATE)
+          get_property(target_type TARGET ${target} PROPERTY TYPE)
+          if("${target_type}" STREQUAL "INTERFACE_LIBRARY")
+            set(CUDA_ARCH_SELECT_INTERFACE ON)
+          else()
+            set(CUDA_ARCH_SELECT_PUBLIC ON)
+          endif()
         endif()
-      endif()
 
-      if(CUDA_ARCH_SELECT_PUBLIC OR CUDA_ARCH_SELECT_INTERFACE)
-        set_property(TARGET ${CUDA_ARCH_SELECT_TARGET} APPEND PROPERTY
-                     INTERFACE_COMPILE_OPTIONS "$<$<COMPILE_LANGUAGE:CUDA>:${flag}>")
-      endif()
+        if(CUDA_ARCH_SELECT_PUBLIC OR CUDA_ARCH_SELECT_INTERFACE)
+          set_property(TARGET ${target} APPEND PROPERTY
+                       INTERFACE_COMPILE_OPTIONS "$<$<COMPILE_LANGUAGE:CUDA>:${flag}>")
+        endif()
 
-      if(CUDA_ARCH_SELECT_PUBLIC OR CUDA_ARCH_SELECT_PRIVATE)
-        set_property(TARGET ${CUDA_ARCH_SELECT_TARGET} APPEND PROPERTY
-                     COMPILE_OPTIONS "$<$<COMPILE_LANGUAGE:CUDA>:${flag}>")
-      endif()
+        if(CUDA_ARCH_SELECT_PUBLIC OR CUDA_ARCH_SELECT_PRIVATE)
+          set_property(TARGET ${target} APPEND PROPERTY
+                       COMPILE_OPTIONS "$<$<COMPILE_LANGUAGE:CUDA>:${flag}>")
+        endif()
 
+      endforeach()
     endforeach()
   endif()
 

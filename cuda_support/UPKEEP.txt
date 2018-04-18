@@ -1,3 +1,0 @@
-The changes from CMake:
-
-* Remove SHELL:, since it's not supported (target system will not work correctly)
