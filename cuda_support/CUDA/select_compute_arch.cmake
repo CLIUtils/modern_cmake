@@ -54,7 +54,10 @@ endif()
 #   CUDA_DETECT_INSTALLED_GPUS(OUT_VARIABLE)
 #
 function(CUDA_DETECT_INSTALLED_GPUS OUT_VARIABLE)
-  if(NOT CUDA_GPU_DETECT_OUTPUT)
+
+  get_property(CUDA_DETECTION_RUN GLOBAL PROPERTY CUDA_GPU_DETECT_OUTPUT_RUN SET)
+
+  if(NOT CUDA_GPU_DETECT_OUTPUT AND NOT CUDA_DETECTION_RUN)
     if(CMAKE_CUDA_COMPILER_LOADED) # CUDA as a language
       set(file "${PROJECT_BINARY_DIR}/detect_cuda_compute_capabilities.cu")
     else()
@@ -88,19 +91,27 @@ function(CUDA_DETECT_INSTALLED_GPUS OUT_VARIABLE)
               RUN_OUTPUT_VARIABLE compute_capabilities)
     endif()
 
+    # If the result is successful, cache the results (between runs)
     if(run_result EQUAL 0)
       string(REPLACE "2.1" "2.1(2.0)" compute_capabilities "${compute_capabilities}")
       set(CUDA_GPU_DETECT_OUTPUT ${compute_capabilities}
         CACHE INTERNAL "Returned GPU architectures from detect_gpus tool" FORCE)
+
     endif()
+
+    # Cache the lookup to happen no more than once per run, even if failed
+    set_property(GLOBAL PROPERTY CUDA_GPU_DETECT_OUTPUT_RUN "TRUE")
   endif()
 
   if(NOT CUDA_GPU_DETECT_OUTPUT)
-    if(NOT CUDA_ARCH_DETECT_QUIET)
+    if(NOT CUDA_ARCH_SELECT_QUIET AND NOT CUDA_DETECTION_RUN)
       message(STATUS "Automatic GPU detection failed. Building for common architectures.")
     endif()
     set(${OUT_VARIABLE} ${CUDA_COMMON_GPU_ARCHITECTURES} PARENT_SCOPE)
   else()
+    if(NOT CUDA_ARCH_SELECT_QUIET AND NOT CUDA_DETECTION_RUN)
+      message(STATUS "Autodetected CUDA architecture(s): ${CUDA_ARCH_LIST}")
+    endif()
     set(${OUT_VARIABLE} ${CUDA_GPU_DETECT_OUTPUT} PARENT_SCOPE)
   endif()
 endfunction()
@@ -109,21 +120,24 @@ endfunction()
 ################################################################################################
 # Function for selecting GPU arch flags for nvcc based on CUDA architectures from parameter list
 # Usage:
-#   cmake_cuda_arch_detect(out_variable [READABLE name] [LISTING name] [ARCH arch1 ...])
+#   cmake_cuda_arch_select([TARGET name] [FLAGS name] [READABLE name] [LISTING name] [ARCH arch1 ...])
+#   FLAGS is a list of the flags
+#   TARGET will have the flags added (interface or regular targets supported)
+#   PUBLIC/INTERFACE/PRIVATE are optional, PUBLIC or INTERFACE is the default
 #   READABLE is a human readable version of the flags list
 #   LISTING is a list of the detected architectures (one per card, in order)
 #   QUIET will keep the function from printing messages
-function(CMAKE_CUDA_ARCH_DETECT out_variable)
-  cmake_parse_arguments(CUDA_ARCH_DETECT
-    "QUIET"
-    "READABLE;LISTING"
+function(CMAKE_CUDA_ARCH_SELECT)
+  cmake_parse_arguments(CUDA_ARCH_SELECT
+      "QUIET;PRIVATE;PUBLIC;INTERFACE"
+    "READABLE;LISTING;FLAGS;TARGET"
     "ARCHS"
     ${ARGN})
-  
-  if(CUDA_ARCH_DETECT_ARCHS)
-    set(CUDA_ARCH_LIST "${CUDA_ARCH_DETECT_ARCHS}")
+
+  if(CUDA_ARCH_SELECT_ARCHS)
+    set(CUDA_ARCH_LIST "${CUDA_ARCH_SELECT_ARCHS}")
   else()
-      set(CUDA_ARCH_LIST "Auto")
+    set(CUDA_ARCH_LIST "Auto")
   endif()
 
   set(cuda_arch_bin)
@@ -134,10 +148,9 @@ function(CMAKE_CUDA_ARCH_DETECT out_variable)
   elseif("${CUDA_ARCH_LIST}" STREQUAL "Common")
     set(CUDA_ARCH_LIST ${CUDA_COMMON_GPU_ARCHITECTURES})
   elseif("${CUDA_ARCH_LIST}" STREQUAL "Auto")
-    CUDA_DETECT_INSTALLED_GPUS(CUDA_ARCH_LIST)
-    if(NOT CUDA_ARCH_DETECT_QUIET)
-      message(STATUS "Autodetected CUDA architecture(s): ${CUDA_ARCH_LIST}")
-    endif()
+    cuda_detect_installed_gpus(CUDA_ARCH_LIST)
+  elseif("${CUDA_ARCH_LIST}" STREQUAL "None")
+    set(CUDA_ARCH_LIST "")
   endif()
 
   # Now process the list and look for names
@@ -178,7 +191,7 @@ function(CMAKE_CUDA_ARCH_DETECT out_variable)
         set(arch_bin 7.0 7.0)
         set(arch_ptx 7.0)
       else()
-        message(SEND_ERROR "Unknown CUDA Architecture Name ${arch_name} in CUDA_SELECT_NVCC_ARCH_FLAGS")
+        message(SEND_ERROR "Unknown CUDA Architecture Name ${arch_name} in cmake_cuda_arch_select")
       endif()
     endif()
     if(NOT arch_bin)
@@ -199,8 +212,8 @@ function(CMAKE_CUDA_ARCH_DETECT out_variable)
   string(REGEX MATCHALL "[0-9()]+" cuda_arch_bin "${cuda_arch_bin}")
   string(REGEX MATCHALL "[0-9]+"   cuda_arch_ptx "${cuda_arch_ptx}")
 
-  if(CUDA_ARCH_DETECT_LISTING)
-    set(${CUDA_ARCH_DETECT_LISTING} ${cuda_arch_ptx} PARENT_SCOPE)
+  if(CUDA_ARCH_SELECT_LISTING)
+    set(${CUDA_ARCH_SELECT_LISTING} ${cuda_arch_ptx} PARENT_SCOPE)
   endif()
 
   if(cuda_arch_bin)
@@ -232,10 +245,37 @@ function(CMAKE_CUDA_ARCH_DETECT out_variable)
     list(APPEND nvcc_archs_readable compute_${arch})
   endforeach()
 
-  set(${out_variable} ${nvcc_flags} PARENT_SCOPE)
-  
-  if(CUDA_ARCH_DETECT_READABLE)
-    set(${CUDA_ARCH_DETECT_READABLE} ${nvcc_archs_readable} PARENT_SCOPE)
+  if(CUDA_ARCH_SELECT_FLAGS)
+    set(${CUDA_ARCH_SELECT_FLAGS} ${nvcc_flags} PARENT_SCOPE)
+  endif()
+
+  if(CUDA_ARCH_SELECT_READABLE)
+    set(${CUDA_ARCH_SELECT_READABLE} ${nvcc_archs_readable} PARENT_SCOPE)
+  endif()
+
+  if(CUDA_ARCH_SELECT_TARGET)
+    foreach(flag IN LISTS nvcc_flags)
+      # If no keyword given, select PUBLIC/INTERFACE as needed
+      if(NOT CUDA_ARCH_SELECT_PUBLIC AND NOT CUDA_ARCH_SELECT_INTERFACE AND NOT CUDA_ARCH_SELECT_PRIVATE)
+        get_property(target_type TARGET ${CUDA_ARCH_SELECT_TARGET} PROPERTY TYPE)
+        if("${target_type}" STREQUAL "INTERFACE_LIBRARY")
+          set(CUDA_ARCH_SELECT_INTERFACE ON)
+        else()
+          set(CUDA_ARCH_SELECT_PUBLIC ON)
+        endif()
+      endif()
+
+      if(CUDA_ARCH_SELECT_PUBLIC OR CUDA_ARCH_SELECT_INTERFACE)
+        set_property(TARGET ${CUDA_ARCH_SELECT_TARGET} APPEND PROPERTY
+                     INTERFACE_COMPILE_OPTIONS "$<$<COMPILE_LANGUAGE:CUDA>:${flag}>")
+      endif()
+
+      if(CUDA_ARCH_SELECT_PUBLIC OR CUDA_ARCH_SELECT_PRIVATE)
+        set_property(TARGET ${CUDA_ARCH_SELECT_TARGET} APPEND PROPERTY
+                     COMPILE_OPTIONS "$<$<COMPILE_LANGUAGE:CUDA>:${flag}>")
+      endif()
+
+    endforeach()
   endif()
 
 endfunction()

@@ -67,9 +67,7 @@ function(CMAKE_CUDA_CONVERT_FLAGS)
     
     foreach(EXISTING_TARGET IN LISTS CCF_INTERFACE_TARGET)
         get_property(old_flags TARGET ${EXISTING_TARGET} PROPERTY INTERFACE_COMPILE_OPTIONS)
-        message(STATUS "Converting: ${old_flags}")
         _cuda_convert_flags(old_flags "${CCF_PROTECT_ONLY}")
-        message(STATUS "Done converting: ${old_flags}")
         set_property(TARGET ${EXISTING_TARGET} PROPERTY INTERFACE_COMPILE_OPTIONS "${old_flags}") 
     endforeach()
 
