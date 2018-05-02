@@ -36,7 +36,8 @@ macro(MODERN_PACKAGE_FOUND_POSTLOAD)
         foreach(_library IN LISTS ROOT_LIBRARIES)
             get_filename_component(_library "${_library}" NAME_WE)
             string(REGEX REPLACE [=[^lib]=] "" _library "${_library}")
-            target_link_libraries(ROOT::Libraries INTERFACE ROOT::${_library})
+            set_property(TARGET ROOT::Libraries APPEND PROPERTY
+                INTERFACE_LINK_LIBRARIES ROOT::${_library})
         endforeach()
     endif()
 
