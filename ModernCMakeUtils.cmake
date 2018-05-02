@@ -17,7 +17,10 @@ macro(FIND_MODERN_PACKAGE PNAME)
     macro(MODERN_PACKAGE_PRELOAD)
     endmacro()
 
-    macro(MODERN_PACKAGE_PRELOAD)
+    macro(MODERN_PACKAGE_POSTLOAD)
+    endmacro()
+
+    macro(MODERN_PACKAGE_FOUND_POSTLOAD)
     endmacro()
 
     # Load a helper file (error if one does not exist)
@@ -29,6 +32,10 @@ macro(FIND_MODERN_PACKAGE PNAME)
     find_package(${PNAME} ${ARGN})
 
     modern_package_postload()
+
+    if(${PNAME}_FOUND)
+        modern_package_found_postload()
+    endif()
 
 endmacro()
 

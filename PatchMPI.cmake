@@ -1,7 +1,7 @@
 # MPI
 cmake_minimum_required(VERSION 3.1)
 
-macro(MODERN_PACKAGE_POSTLOAD)
+macro(MODERN_PACKAGE_FOUND_POSTLOAD)
     # For supporting CMake < 3.9:
     if(NOT TARGET MPI::MPI_CXX)
         add_library(MPI::MPI_CXX IMPORTED INTERFACE)
