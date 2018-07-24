@@ -17,6 +17,12 @@
 #      More info on CUDA architectures: https://en.wikipedia.org/wiki/CUDA
 #
 
+if(CMAKE_VERSION VERSION_LESS 3.12)
+  if(CMAKE_CUDA_COMPILER_ID)
+    set(CMAKE_CUDA_COMPILER_LOADED ON)
+  endif()
+endif()
+
 if(CMAKE_CUDA_COMPILER_LOADED) # CUDA as a language
   if(CMAKE_CUDA_COMPILER_ID STREQUAL "NVIDIA")
     set(CUDA_VERSION "${CMAKE_CUDA_COMPILER_VERSION}")
