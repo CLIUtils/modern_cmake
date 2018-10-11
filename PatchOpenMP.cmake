@@ -28,7 +28,7 @@ macro(MODERN_PACKAGE_POSTLOAD)
                 message(STATUS "This program supports OpenMP on Mac through Brew. Please run \"brew install libomp\"")
             else()
                 execute_process(COMMAND ${BREW} --prefix libomp OUTPUT_VARIABLE BREW_LIBOMP_PREFIX OUTPUT_STRIP_TRAILING_WHITESPACE)
-                set(OpenMP_CXX_FLAGS "-Xpreprocessor -fopenmp")
+                set(OpenMP_CXX_FLAGS "-Xpreprocessor -fopenmp -I/usr/local/opt/libomp/include")
                 set(OpenMP_CXX_LIB_NAMES "omp")
                 set(OpenMP_omp_LIBRARY "${BREW_LIBOMP_PREFIX}/lib/libomp.dylib")
 
