@@ -12,7 +12,7 @@ set(MODERN_CMAKE_UTILS ON)
 # Capture the current directory
 set(MODERN_CMAKE_UTILS_DIR "${CMAKE_CURRENT_LIST_DIR}")
 
-macro(FIND_MODERN_PACKAGE PNAME)
+macro(FIND_PACKAGE PNAME)
 # Default, empty functions
     macro(MODERN_PACKAGE_PRELOAD)
     endmacro()
@@ -24,12 +24,15 @@ macro(FIND_MODERN_PACKAGE PNAME)
     endmacro()
 
     # Load a helper file (error if one does not exist)
-    include("${MODERN_CMAKE_UTILS_DIR}/Patch${PNAME}.cmake")
-
+    if(EXISTS "${MODERN_CMAKE_UTILS_DIR}/Patch${PNAME}.cmake"
+        message( STATUS "[MODERN_CMAKE_TOOLS] Found patch for module ${PNAME}" )
+        include("${MODERN_CMAKE_UTILS_DIR}/Patch${PNAME}.cmake")
+    endif()
+    
     # These commands "override" any previously loaded command
     modern_package_preload()
 
-    find_package(${PNAME} ${ARGN})
+    _find_package(${PNAME} ${ARGN})
 
     modern_package_postload()
 
